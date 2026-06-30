@@ -1,0 +1,24 @@
+{
+  "pluginAlias": "Aprica",
+  "pluginType": "platform",
+  "headerDisplay": "Waste collection calendar from Aprica Spa. Shows countdown days until next collection for each waste type.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "geociv": {
+        "title": "Geo-Civic ID (geociv)",
+        "type": "integer",
+        "required": true,
+        "description": "Your address geo-civic ID. Visit https://www.apricaspa.it/it/bergamo/servizi/raccolta-differenziata, enter your address, and find the geociv value in the network request payload."
+      },
+      "pollInterval": {
+        "title": "Poll Interval (minutes)",
+        "type": "integer",
+        "default": 360,
+        "minimum": 60,
+        "description": "How often to check the waste collection calendar, in minutes. Default: 360 (6 hours)."
+      }
+    },
+    "required": ["geociv"]
+  }
+}

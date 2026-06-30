@@ -1,0 +1,14 @@
+{
+  "name": "doimus-aprica",
+  "version": "1.0.0",
+  "description": "Doimus plugin for Aprica waste collection calendar — shows countdown days until next collection for each waste type",
+  "license": "MIT",
+  "author": "Matteo Crippa",
+  "main": "index.js",
+  "doimus": {
+    "type": "native"
+  },
+  "dependencies": {
+    "axios": "^1.0.0"
+  }
+}
