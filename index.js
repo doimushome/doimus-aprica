@@ -8,6 +8,11 @@ const API_URL =
 let timer = null;
 let savedApi = null;
 let registeredDeviceIds = [];
+let log = null;
+
+function createLogger(api, prefix) {
+  return (level, msg) => api.log(level, `[${prefix}] ${msg}`);
+}
 
 // Map Italian waste descriptions to stable slugs for device IDs.
 // Any unknown desc is slugified at runtime.
@@ -32,9 +37,10 @@ function slugify(desc) {
 module.exports = {
   start(config, api) {
     savedApi = api;
+    log = createLogger(api, "Aprica");
     const geociv = config.geociv;
     if (!geociv) {
-      api.log("error", "geociv is required. Set it in plugin settings.");
+      log("error", "geociv is required. Set it in plugin settings.");
       return;
     }
 
@@ -51,7 +57,7 @@ module.exports = {
           response.data.status !== 1 ||
           !Array.isArray(response.data.data)
         ) {
-          api.log("error", "Unexpected API response from Aprica");
+          log("error", "Unexpected API response from Aprica");
           return;
         }
 
@@ -117,7 +123,7 @@ module.exports = {
               state,
             });
             registeredDeviceIds.push(deviceId);
-            api.log("info", `Registered Aprica sensor: ${deviceId} (${desc})`);
+            log("info", `Registered Aprica sensor: ${deviceId} (${desc})`);
           } else {
             api.updateDeviceState(deviceId, state);
           }
@@ -128,22 +134,22 @@ module.exports = {
           seenIds.has(id),
         );
 
-        api.log(
+        log(
           "debug",
           `Aprica updated for geociv=${geociv} (${byType.size} waste types)`,
         );
       } catch (err) {
-        api.log("error", `Aprica fetch failed: ${err.message}`);
+        log("error", `Aprica fetch failed: ${err.message}`);
       }
     }
 
     fetchAndUpdate().catch((e) =>
-      api.log("error", `Initial Aprica fetch failed: ${e.message}`),
+      log("error", `Initial Aprica fetch failed: ${e.message}`),
     );
 
     timer = setInterval(() => {
       fetchAndUpdate().catch((e) =>
-        api.log("error", `Periodic Aprica fetch failed: ${e.message}`),
+        log("error", `Periodic Aprica fetch failed: ${e.message}`),
       );
     }, pollIntervalMs);
     if (timer.unref) timer.unref();
