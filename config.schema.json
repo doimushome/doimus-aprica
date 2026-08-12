@@ -17,6 +17,12 @@
         "default": 360,
         "minimum": 60,
         "description": "How often to check the waste collection calendar, in minutes. Default: 360 (6 hours)."
+      },
+      "timezone": {
+        "title": "Timezone (IANA)",
+        "type": "string",
+        "default": "Europe/Rome",
+        "description": "IANA timezone of your collection area. Aprica collection dates are at midnight local time, so this keeps 'today/tomorrow' correct. Default: Europe/Rome."
       }
     },
     "required": ["geociv"]

@@ -24,6 +24,16 @@ const WASTE_TYPE_SLUGS = {
   "Raccolta carta e cartone": "carta-cartone",
 };
 
+// Short human labels used for the `collection_type` state key, so the mobile
+// app can show the waste type without parsing the device name.
+const WASTE_TYPE_LABELS = {
+  "Raccolta organico": "Organico",
+  "Raccolta plastica": "Plastica",
+  "Raccolta vetro e metallo": "Vetro e metallo",
+  "Raccolta indifferenziato": "Indifferenziato",
+  "Raccolta carta e cartone": "Carta e cartone",
+};
+
 function slugify(desc) {
   return (
     WASTE_TYPE_SLUGS[desc] ||
@@ -32,6 +42,31 @@ function slugify(desc) {
       .replace(/\s+/g, "-")
       .replace(/[^a-z0-9-]/g, "")
   );
+}
+
+function typeLabel(desc) {
+  return WASTE_TYPE_LABELS[desc] || desc;
+}
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+// Calendar day (YYYY-MM-DD) of a timestamp in the given timezone. Collection
+// dates from the API are at midnight local time, so raw epoch comparison
+// against a UTC clock mislabels today's collection as already past. Comparing
+// calendar days in the user's timezone keeps "today" correct all day.
+function dayKey(ts, tz) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ts));
+}
+
+function daysBetween(fromMs, toMs, tz) {
+  const from = Date.parse(dayKey(fromMs, tz));
+  const to = Date.parse(dayKey(toMs, tz));
+  return Math.round((to - from) / DAY_MS);
 }
 
 module.exports = {
@@ -44,6 +79,8 @@ module.exports = {
       return;
     }
 
+    // Timezone of the collection area. Aprica timestamps are midnight local.
+    const tz = config.timezone || "Europe/Rome";
     const pollIntervalMs = (config.pollInterval || 360) * 60 * 1000;
 
     async function fetchAndUpdate() {
@@ -63,13 +100,17 @@ module.exports = {
 
         const items = response.data.data;
         const now = Date.now();
+        const todayKey = dayKey(now, tz);
 
-        // Group by waste desc, keeping the earliest *future* date per type.
+        // Group by waste desc, keeping the earliest collection whose calendar
+        // day is today or later.
         const byType = new Map();
 
         for (const item of items) {
           const desc = item.desc;
           const date = item.date; // epoch ms
+
+          if (dayKey(date, tz) < todayKey) continue;
 
           if (!byType.has(desc)) {
             byType.set(desc, {
@@ -83,10 +124,7 @@ module.exports = {
           }
 
           const current = byType.get(desc);
-
-          // Prefer the earliest future date.  If the stored date is
-          // already in the past, any future date wins.
-          if (date >= now && (current.date < now || date < current.date)) {
+          if (date < current.date) {
             current.date = date;
             current.rgb = item.rgb;
             current.icon = item.icon;
@@ -101,14 +139,12 @@ module.exports = {
           const deviceId = `aprica-${geociv}-${slug}`;
           seenIds.add(deviceId);
 
-          const daysUntil = Math.max(
-            0,
-            Math.ceil((info.date - now) / (1000 * 60 * 60 * 24)),
-          );
+          const daysUntil = daysBetween(now, info.date, tz);
 
           const state = {
             next_collection: info.date,
             days_until: daysUntil,
+            collection_type: typeLabel(desc),
             collection_note: info.note || "",
             collection_color: info.rgb || "",
             collection_icon: info.icon || "",
