@@ -215,6 +215,11 @@ module.exports = {
               type: "sensor",
               capabilities: Object.keys(state),
               state,
+              metadata: {
+                activity: {
+                  days_until: { label: "Days until collection", threshold: 1 },
+                },
+              },
             });
             registeredDeviceIds.push(deviceId);
             log("info", `Registered Aprica sensor: ${deviceId} (${desc})`);
