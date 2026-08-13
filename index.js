@@ -69,6 +69,63 @@ function daysBetween(fromMs, toMs, tz) {
   return Math.round((to - from) / DAY_MS);
 }
 
+// UTC offset (ms) of `tz` at the given instant, derived from Intl formatting.
+function tzOffsetMs(tz, epochMs) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(epochMs));
+  const v = {};
+  for (const p of parts) v[p.type] = Number(p.value);
+  const asUtc = Date.UTC(
+    v.year,
+    v.month - 1,
+    v.day,
+    v.hour,
+    v.minute,
+    v.second,
+  );
+  return asUtc - epochMs;
+}
+
+// Epoch ms for a local wall-clock time (1-based month/day) in `tz`. Iterates a
+// few times so the timezone offset at the target time converges (DST-correct).
+function wallClockEpoch(tz, year, month, day, hour, minute, second) {
+  const naive = Date.UTC(year, month - 1, day, hour, minute, second);
+  let guess = naive;
+  for (let i = 0; i < 3; i++) {
+    guess = naive - tzOffsetMs(tz, guess);
+  }
+  return guess;
+}
+
+// Real ms from now until the next HH:MM local time in `tz`.
+function msUntilLocalTime(tz, hh, mm) {
+  const nowMs = Date.now();
+  const [y, m, d] = dayKey(nowMs, tz).split("-").map(Number);
+  let target = wallClockEpoch(tz, y, m, d, hh, mm, 0);
+  if (target <= nowMs) {
+    // Already past today: advance one calendar day in `tz`.
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    target = wallClockEpoch(
+      tz,
+      next.getUTCFullYear(),
+      next.getUTCMonth() + 1,
+      next.getUTCDate(),
+      hh,
+      mm,
+      0,
+    );
+  }
+  return target - nowMs;
+}
+
 module.exports = {
   start(config, api) {
     savedApi = api;
@@ -81,7 +138,7 @@ module.exports = {
 
     // Timezone of the collection area. Aprica timestamps are midnight local.
     const tz = config.timezone || "Europe/Rome";
-    const pollIntervalMs = (config.pollInterval || 360) * 60 * 1000;
+    const pollIntervalMs = (config.pollInterval || 60) * 60 * 1000;
 
     async function fetchAndUpdate() {
       try {
@@ -144,6 +201,7 @@ module.exports = {
           const state = {
             next_collection: info.date,
             days_until: daysUntil,
+            collection_timezone: tz,
             collection_type: typeLabel(desc),
             collection_note: info.note || "",
             collection_color: info.rgb || "",
@@ -183,16 +241,25 @@ module.exports = {
       log("error", `Initial Aprica fetch failed: ${e.message}`),
     );
 
-    timer = setInterval(() => {
-      fetchAndUpdate().catch((e) =>
-        log("error", `Periodic Aprica fetch failed: ${e.message}`),
-      );
-    }, pollIntervalMs);
-    if (timer.unref) timer.unref();
+    // Self-rescheduling poll: fire at least every pollInterval, but also right
+    // after the next local midnight in the collection timezone so "today"
+    // advances as soon as the calendar day rolls over (midnight + 10 min).
+    function scheduleNext() {
+      const delay = Math.min(pollIntervalMs, msUntilLocalTime(tz, 0, 10));
+      timer = setTimeout(() => {
+        fetchAndUpdate().catch((e) =>
+          log("error", `Periodic Aprica fetch failed: ${e.message}`),
+        );
+        scheduleNext();
+      }, delay);
+      if (timer.unref) timer.unref();
+    }
+
+    scheduleNext();
   },
 
   stop() {
-    if (timer) clearInterval(timer);
+    if (timer) clearTimeout(timer);
     timer = null;
     registeredDeviceIds = [];
   },

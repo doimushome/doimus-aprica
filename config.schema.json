@@ -14,9 +14,9 @@
       "pollInterval": {
         "title": "Poll Interval (minutes)",
         "type": "integer",
-        "default": 360,
-        "minimum": 60,
-        "description": "How often to check the waste collection calendar, in minutes. Default: 360 (6 hours)."
+        "default": 60,
+        "minimum": 15,
+        "description": "How often to check the waste collection calendar, in minutes. The plugin also refreshes right after local midnight (in the configured timezone) so 'today' advances promptly. Default: 60."
       },
       "timezone": {
         "title": "Timezone (IANA)",
