@@ -111,17 +111,7 @@ function msUntilLocalTime(tz, hh, mm) {
   const [y, m, d] = dayKey(nowMs, tz).split("-").map(Number);
   let target = wallClockEpoch(tz, y, m, d, hh, mm, 0);
   if (target <= nowMs) {
-    // Already past today: advance one calendar day in `tz`.
-    const next = new Date(Date.UTC(y, m - 1, d + 1));
-    target = wallClockEpoch(
-      tz,
-      next.getUTCFullYear(),
-      next.getUTCMonth() + 1,
-      next.getUTCDate(),
-      hh,
-      mm,
-      0,
-    );
+    target = wallClockEpoch(tz, y, m, d + 1, hh, mm, 0);
   }
   return target - nowMs;
 }
